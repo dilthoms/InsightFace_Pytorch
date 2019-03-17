@@ -11,17 +11,60 @@ import pickle
 import torch
 import mxnet as mx
 from tqdm import tqdm
-
+import pandas as pd
+import pdb
+import sys
+import os
+class AgeDataset(Dataset):
+    def __init__(self,root_dir,agefile,transform=None):
+        self.df = pd.read_csv(agefile,header=None,sep=" ")
+        self.root = root_dir
+        self.transform = transform
+        self.classes,self.class_to_idx = self._find_classes(self.root)
+    def _find_classes(self, dir):
+        """
+        Finds the class folders in a dataset.
+        Args:
+            dir (string): Root directory path.
+        Returns:
+            tuple: (classes, class_to_idx) where classes are relative to (dir), and class_to_idx is a dictionary.
+        Ensures:
+            No class is a subdirectory of another.
+        """
+        if sys.version_info >= (3, 5):
+            # Faster and available in Python 3.5 and above
+            classes = [d.name for d in os.scandir(dir) if d.is_dir()]
+        else:
+            classes = [d for d in os.listdir(dir) if os.path.isdir(os.path.join(dir, d))]
+        classes.sort()
+        class_to_idx = {classes[i]: i for i in range(len(classes))}
+        return classes, class_to_idx
+    def __len__(self):
+        return len(self.df)
+    def __getitem__(self,idx):
+        img_fn = self.df.iloc[idx,0]
+        age = int(self.df.iloc[idx,1])
+        label = self.class_to_idx[img_fn.split('/')[0]]
+        img_path = self.root/img_fn
+        with open(str(img_path), 'rb') as f:
+            img = Image.open(f).convert('RGB')
+            if self.transform:
+                img = self.transform(img)
+            return img,label,age,img_fn
 def de_preprocess(tensor):
     return tensor*0.5 + 0.5
-    
-def get_train_dataset(imgs_folder):
+     
+
+def get_train_dataset(imgs_folder,agefile=None):
     train_transform = trans.Compose([
         trans.RandomHorizontalFlip(),
         trans.ToTensor(),
         trans.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
-    ds = ImageFolder(imgs_folder, train_transform)
+    if agefile:
+        ds = AgeDataset(imgs_folder,agefile,train_transform)
+    else:
+        ds = ImageFolder(imgs_folder, train_transform)
     class_num = ds[-1][1] + 1
     return ds, class_num
 
@@ -45,6 +88,9 @@ def get_train_loader(conf):
         class_num = vgg_class_num + ms1m_class_num
     elif conf.data_mode == 'emore':
         ds, class_num = get_train_dataset(conf.emore_folder/'imgs')
+    elif conf.data_mode == 'age':
+        ds, class_num = get_train_dataset(Path(conf.emore_folder/'imgs'),conf.age_train_file)
+        class_num = 85742
     loader = DataLoader(ds, batch_size=conf.batch_size, shuffle=True, pin_memory=conf.pin_memory, num_workers=conf.num_workers)
     return loader, class_num 
     

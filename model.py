@@ -235,7 +235,7 @@ class MobileFaceNet(Module):
         out = self.linear(out)
 
         out = self.bn(out)
-        return l2_norm(out)
+        return out
 
 ##################################  Arcface head #############################################################
 
@@ -303,4 +303,13 @@ class Am_softmax(Module):
         output[index] = phi[index] #only change the correct predicted output
         output *= self.s # scale up in order to make softmax work, first introduced in normface
         return output
+class AgeHead(Module):
+    def __init__(self, embedding_size=512):
+        super(AgeHead, self).__init__()
+        self.linear = Linear(1,1)
+    def forward(self,embbedings,age):
+        
+        age = self.linear(norm)
+        return age       
+        
 

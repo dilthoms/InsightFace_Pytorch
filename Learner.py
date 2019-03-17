@@ -1,5 +1,5 @@
 from data.data_pipe import de_preprocess, get_train_loader, get_val_data
-from model import Backbone, Arcface, MobileFaceNet, Am_softmax, l2_norm
+from model import Backbone, Arcface, MobileFaceNet, Am_softmax, l2_norm, AgeHead
 from verifacation import evaluate
 import torch
 from torch import optim
@@ -13,7 +13,7 @@ from PIL import Image
 from torchvision import transforms as trans
 import math
 import bcolz
-
+import pdb
 class face_learner(object):
     def __init__(self, conf, inference=False):
         print(conf)
@@ -31,7 +31,7 @@ class face_learner(object):
             self.writer = SummaryWriter(conf.log_path)
             self.step = 0
             self.head = Arcface(embedding_size=conf.embedding_size, classnum=self.class_num).to(conf.device)
-
+            self.agehead = AgeHead(embedding_size = conf.embedding_size).to(conf.device)
             print('two model heads generated')
 
             paras_only_bn, paras_wo_bn = separate_bn_paras(self.model)
@@ -39,12 +39,12 @@ class face_learner(object):
             if conf.use_mobilfacenet:
                 self.optimizer = optim.SGD([
                                     {'params': paras_wo_bn[:-1], 'weight_decay': 4e-5},
-                                    {'params': [paras_wo_bn[-1]] + [self.head.kernel], 'weight_decay': 4e-4},
+                                    {'params': [paras_wo_bn[-1]] + [self.head.kernel]+[*self.agehead.linear.parameters()], 'weight_decay': 4e-4},
                                     {'params': paras_only_bn}
                                 ], lr = conf.lr, momentum = conf.momentum)
             else:
                 self.optimizer = optim.SGD([
-                                    {'params': paras_wo_bn + [self.head.kernel], 'weight_decay': 5e-4},
+                                    {'params': paras_wo_bn + [self.head.kernel]+[*self.agehead.linear.parameters()], 'weight_decay': 5e-4},
                                     {'params': paras_only_bn}
                                 ], lr = conf.lr, momentum = conf.momentum)
             print(self.optimizer)
@@ -68,6 +68,9 @@ class face_learner(object):
             ('model_{}_accuracy:{}_step:{}_{}.pth'.format(get_time(), accuracy, self.step, extra)))
         if not model_only:
             torch.save(
+                self.agehead.state_dict(), save_path /
+                ('agehead_{}_accuracy:{}_step:{}_{}.pth'.format(get_time(), accuracy, self.step, extra)))
+            torch.save(
                 self.head.state_dict(), save_path /
                 ('head_{}_accuracy:{}_step:{}_{}.pth'.format(get_time(), accuracy, self.step, extra)))
             torch.save(
@@ -81,9 +84,12 @@ class face_learner(object):
             save_path = conf.model_path            
         self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str)))
         if not model_only:
-            self.head.load_state_dict(torch.load(save_path/'head_{}'.format(fixed_str)))
-            self.optimizer.load_state_dict(torch.load(save_path/'optimizer_{}'.format(fixed_str)))
-        
+            try:
+                self.head.load_state_dict(torch.load(save_path/'head_{}'.format(fixed_str)))
+                self.agehead.load_state_dict(torch.load(save_path/'agehead_{}'.format(fixed_str)))
+                #self.optimizer.load_state_dict(torch.load(save_path/'optimizer_{}'.format(fixed_str)))
+            except:
+                print("heads and optimiser not found for {}".format(fixed_str))
     def board_val(self, db_name, accuracy, best_threshold, roc_curve_tensor):
         self.writer.add_scalar('{}_accuracy'.format(db_name), accuracy, self.step)
         self.writer.add_scalar('{}_best_threshold'.format(db_name), best_threshold, self.step)
@@ -101,19 +107,19 @@ class face_learner(object):
                 batch = torch.tensor(carray[idx:idx + conf.batch_size])
                 if tta:
                     fliped = hflip_batch(batch)
-                    emb_batch = self.model(batch.to(conf.device)) + self.model(fliped.to(conf.device))
+                    emb_batch = l2_norm(self.model(batch.to(conf.device))) + l2_norm(self.model(fliped.to(conf.device)))
                     embeddings[idx:idx + conf.batch_size] = l2_norm(emb_batch)
                 else:
-                    embeddings[idx:idx + conf.batch_size] = self.model(batch.to(conf.device)).cpu()
+                    embeddings[idx:idx + conf.batch_size] = l2_norm(self.model(batch.to(conf.device))).cpu()
                 idx += conf.batch_size
             if idx < len(carray):
                 batch = torch.tensor(carray[idx:])            
                 if tta:
                     fliped = hflip_batch(batch)
-                    emb_batch = self.model(batch.to(conf.device)) + self.model(fliped.to(conf.device))
+                    emb_batch = l2_norm(self.model(batch.to(conf.device))) + l2_norm(self.model(fliped.to(conf.device)))
                     embeddings[idx:] = l2_norm(emb_batch)
                 else:
-                    embeddings[idx:] = self.model(batch.to(conf.device)).cpu()
+                    embeddings[idx:] = l2_norm(self.model(batch.to(conf.device))).cpu()
         tpr, fpr, accuracy, best_thresholds = evaluate(embeddings, issame, nrof_folds)
         buf = gen_plot(fpr, tpr)
         roc_curve = Image.open(buf)
@@ -139,7 +145,7 @@ class face_learner(object):
         batch_num = 0
         losses = []
         log_lrs = []
-        for i, (imgs, labels) in tqdm(enumerate(self.loader), total=num):
+        for i, (imgs, labels, ages, fns) in tqdm(enumerate(self.loader), total=num):
 
             imgs = imgs.to(conf.device)
             labels = labels.to(conf.device)
@@ -148,9 +154,8 @@ class face_learner(object):
             self.optimizer.zero_grad()
 
             embeddings = self.model(imgs)
-            thetas = self.head(embeddings, labels)
-            loss = conf.ce_loss(thetas, labels)          
-          
+            thetas = self.head(l2_norm(embeddings), labels)
+            loss = conf.ce_loss(thetas, labels)+conf.lam*conf.age_loss(torch.norm(embeddings,2,1,True),ages.to(conf.device).float().unsqueeze(-1))
             #Compute the smoothed loss
             avg_loss = beta * avg_loss + (1 - beta) * loss.item()
             self.writer.add_scalar('avg_loss', avg_loss, batch_num)
@@ -183,7 +188,9 @@ class face_learner(object):
 
     def train(self, conf, epochs):
         self.model.train()
-        running_loss = 0.            
+        running_loss = 0.
+        if conf.restore:
+            self.load_state(conf, conf.restore, True, False)           
         for e in range(epochs):
             print('epoch {} started'.format(e))
             if e == self.milestones[0]:
@@ -191,18 +198,19 @@ class face_learner(object):
             if e == self.milestones[1]:
                 self.schedule_lr()      
             if e == self.milestones[2]:
-                self.schedule_lr()                                 
-            for imgs, labels in tqdm(iter(self.loader)):
+                self.schedule_lr()
+            pbar =  tqdm(iter(self.loader))                                
+            for imgs, labels, ages, fns in pbar:
                 imgs = imgs.to(conf.device)
                 labels = labels.to(conf.device)
                 self.optimizer.zero_grad()
-                embeddings = self.model(imgs)
+                embeddings = l2_norm(self.model(imgs))
                 thetas = self.head(embeddings, labels)
-                loss = conf.ce_loss(thetas, labels)
+                loss = conf.ce_loss(thetas, labels)+conf.lam*conf.age_loss(torch.norm(embeddings,2,1,True),ages.to(conf.device).float().unsqueeze(-1))
                 loss.backward()
                 running_loss += loss.item()
                 self.optimizer.step()
-                
+                pbar.set_description("loss {}".format(loss))
                 if self.step % self.board_loss_every == 0 and self.step != 0:
                     loss_board = running_loss / self.board_loss_every
                     self.writer.add_scalar('train_loss', loss_board, self.step)
@@ -239,11 +247,11 @@ class face_learner(object):
         for img in faces:
             if tta:
                 mirror = trans.functional.hflip(img)
-                emb = self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))
-                emb_mirror = self.model(conf.test_transform(mirror).to(conf.device).unsqueeze(0))
+                emb = self.head(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
+                emb_mirror = self.head(l2_norm(self.model(conf.test_transform(mirror).to(conf.device).unsqueeze(0))))
                 embs.append(l2_norm(emb + emb_mirror))
             else:                        
-                embs.append(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
+                embs.append(self.head(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0)))))
         source_embs = torch.cat(embs)
         
         diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).unsqueeze(0)
