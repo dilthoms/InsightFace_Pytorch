@@ -47,6 +47,8 @@ def prepare_facebank(conf, model, mtcnn, tta = True):
                         continue
                     if img.size != (112, 112):
                         img = mtcnn.align(img)
+                    data = np.asarray(img)
+                    img = Image.fromarray(data[:,:,::-1])
                     with torch.no_grad():
                         if tta:
                             mirror = trans.functional.hflip(img)
@@ -67,7 +69,7 @@ def prepare_facebank(conf, model, mtcnn, tta = True):
     return embeddings, names
 
 def load_facebank(conf):
-    embeddings = torch.load(conf.facebank_path/'facebank.pth')
+    embeddings = torch.load(conf.facebank_path/'facebank.pth',map_location=lambda storage, loc: storage)
     names = np.load(conf.facebank_path/'names.npy')
     return embeddings, names
 

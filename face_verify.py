@@ -8,6 +8,9 @@ from config import get_config
 from mtcnn import MTCNN
 from Learner import face_learner
 from utils import load_facebank, draw_box_name, prepare_facebank
+import pdb
+from data.data_pipe import get_val_pair
+import numpy as np
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='for face verification')
@@ -16,6 +19,7 @@ if __name__ == '__main__':
     parser.add_argument("-u", "--update", help="whether perform update the facebank",action="store_true")
     parser.add_argument("-tta", "--tta", help="whether test time augmentation",action="store_true")
     parser.add_argument("-c", "--score", help="whether show the confidence score",action="store_true")
+    parser.add_argument("-f", "--file", help="filename")
     args = parser.parse_args()
 
     conf = get_config(False)
@@ -31,14 +35,39 @@ if __name__ == '__main__':
         learner.load_state(conf, 'final.pth', True, True)
     learner.model.eval()
     print('learner loaded')
-    
+   
+    '''vgg2_fp, vgg2_fp_issame = get_val_pair(conf.emore_folder, 'vgg2_fp')
+    accuracy, best_threshold, roc_curve_tensor = learner.evaluate(conf, vgg2_fp, vgg2_fp_issame, nrof_folds=10, tta=True)
+    print('vgg2_fp - accuray:{}, threshold:{}'.format(accuracy, best_threshold))
+    exit(0)'''
     if args.update:
         targets, names = prepare_facebank(conf, learner.model, mtcnn, tta = args.tta)
         print('facebank updated')
     else:
         targets, names = load_facebank(conf)
         print('facebank loaded')
-
+    faces = [] 
+    f = open(args.file)
+    imgfns = f.readlines()
+    for imgfn in imgfns:
+        frame = cv2.imread(imgfn.strip())
+        frame = cv2.resize(frame,(112,112))
+        image = Image.fromarray(frame[:,:,::-1])
+        #pdb.set_trace()
+        try:
+            face = mtcnn.align(image)
+            data = np.asarray(face)
+            face = Image.fromarray(data[:,:,::-1])
+        except:
+            print('mtcnn failed for {}'.format(imgfn))
+            face = Image.fromarray(frame)
+        faces.append(face)
+    results, score ,d = learner.infer(conf, faces, targets, args.tta)
+    for idx,f in enumerate(imgfns):
+        print (f+" "+names[results[idx] + 1])
+        print (score)
+        print (d[idx])
+    '''
     # inital camera
     cap = cv2.VideoCapture(0)
     cap.set(3,1280)
@@ -76,4 +105,4 @@ if __name__ == '__main__':
     cap.release()
     if args.save:
         video_writer.release()
-    cv2.destroyAllWindows()    
+    cv2.destroyAllWindows()    '''
