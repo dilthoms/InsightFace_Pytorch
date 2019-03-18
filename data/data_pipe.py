@@ -93,7 +93,27 @@ def get_train_loader(conf):
         class_num = 85742
     loader = DataLoader(ds, batch_size=conf.batch_size, shuffle=True, pin_memory=conf.pin_memory, num_workers=conf.num_workers)
     return loader, class_num 
-    
+     
+def load_lag(path, imgdir,rootdir, transform, image_size=[112,112]):
+    if not rootdir.exists():
+        rootdir.mkdir()
+    df = pd.read_csv(path)
+    data = bcolz.fill([len(df)*2, 3, image_size[0], image_size[1]], dtype=np.float32, rootdir=rootdir, mode='w')
+    for idx,row in df.iterrows():
+        imga = cv2.resize(cv2.imread(str(imgdir/row['apath']),1),(image_size[0],image_size[1]))
+        imgy = cv2.resize(cv2.imread(str(imgdir/row['ypath']),1),(image_size[0],image_size[1]))
+        imga = Image.fromarray(imga.astype(np.uint8))
+        imgy = Image.fromarray(imgy.astype(np.uint8))
+        data[2*idx, ...] = transform(imga)
+        data[2*idx+1, ...] = transform(imgy)
+        if idx % 1000 == 0:
+            print('loading ', idx)
+    print(data.shape)
+    issame_list = np.array([True]*(len(df)//2) + [False]*(len(df)//2))
+    np.save(str(rootdir)+'_list', np.array(issame_list))
+    return data, issame_list
+
+
 def load_bin(path, rootdir, transform, image_size=[112,112]):
     if not rootdir.exists():
         rootdir.mkdir()

@@ -1,6 +1,6 @@
 from pathlib import Path
 from config import get_config
-from data.data_pipe import load_bin, load_mx_rec
+from data.data_pipe import load_bin, load_mx_rec, load_lag
 import argparse
 
 if __name__ == '__main__':
@@ -9,9 +9,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     conf = get_config()
     rec_path = conf.data_path/args.rec_path
-    load_mx_rec(rec_path)
+    '''load_mx_rec(rec_path)
     
     bin_files = ['agedb_30', 'cfp_fp', 'lfw', 'calfw', 'cfp_ff', 'cplfw', 'vgg2_fp']
     
     for i in range(len(bin_files)):
         load_bin(rec_path/(bin_files[i]+'.bin'), rec_path/bin_files[i], conf.test_transform)
+    '''
+    load_lag(conf.data_path/'LAG/pairs.csv', conf.data_path/'LAG',rec_path/'LAG',conf.test_transform)

@@ -82,7 +82,8 @@ class face_learner(object):
             save_path = conf.save_path
         else:
             save_path = conf.model_path            
-        self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str)))
+        self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str)))#,map_location=lambda storage, loc: storage))
+        #self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str)))
         if not model_only:
             try:
                 self.head.load_state_dict(torch.load(save_path/'head_{}'.format(fixed_str)))
@@ -247,11 +248,11 @@ class face_learner(object):
         for img in faces:
             if tta:
                 mirror = trans.functional.hflip(img)
-                emb = self.head(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
-                emb_mirror = self.head(l2_norm(self.model(conf.test_transform(mirror).to(conf.device).unsqueeze(0))))
+                emb = l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
+                emb_mirror = l2_norm(self.model(conf.test_transform(mirror).to(conf.device).unsqueeze(0)))
                 embs.append(l2_norm(emb + emb_mirror))
             else:                        
-                embs.append(self.head(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0)))))
+                embs.append(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
         source_embs = torch.cat(embs)
         
         diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).unsqueeze(0)
