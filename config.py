@@ -16,7 +16,7 @@ def get_config(training = True):
     conf.use_mobilfacenet = True
     conf.net_depth = 50
     conf.drop_ratio = 0.6
-    conf.net_mode = 'mobilefacenet' #'ir_se' # or 'ir'
+    conf.net_mode = 'mobilefacenet' # or 'ir'
     conf.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     conf.test_transform = trans.Compose([
                     trans.ToTensor(),
@@ -36,7 +36,7 @@ def get_config(training = True):
         conf.lam = 0.01
     #     conf.weight_decay = 5e-4
         conf.lr = 1e-1
-        conf.milestones = [4,6,8,12,14]
+        conf.milestones = [4,6,7]
         conf.momentum = 0.9
         conf.pin_memory = True
 #         conf.num_workers = 4 # when batchsize is 200
