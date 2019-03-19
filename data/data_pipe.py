@@ -90,7 +90,6 @@ def get_train_loader(conf):
         ds, class_num = get_train_dataset(conf.emore_folder/'imgs')
     elif conf.data_mode == 'age':
         ds, class_num = get_train_dataset(Path(conf.emore_folder/'imgs'),conf.age_train_file)
-        class_num = 85742
     loader = DataLoader(ds, batch_size=conf.batch_size, shuffle=True, pin_memory=conf.pin_memory, num_workers=conf.num_workers)
     return loader, class_num 
      
@@ -109,6 +108,7 @@ def load_lag(path, imgdir,rootdir, transform, image_size=[112,112]):
         if idx % 1000 == 0:
             print('loading ', idx)
     print(data.shape)
+    data.flush()
     issame_list = np.array([True]*(len(df)//2) + [False]*(len(df)//2))
     np.save(str(rootdir)+'_list', np.array(issame_list))
     return data, issame_list
@@ -129,6 +129,7 @@ def load_bin(path, rootdir, transform, image_size=[112,112]):
         if i % 1000 == 0:
             print('loading bin', i)
     print(data.shape)
+    data.flush()
     np.save(str(rootdir)+'_list', np.array(issame_list))
     return data, issame_list
 

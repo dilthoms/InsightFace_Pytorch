@@ -28,7 +28,7 @@ def separate_bn_paras(modules):
                 paras_wo_bn.extend([*layer.parameters()])
     return paras_only_bn, paras_wo_bn
 
-def prepare_facebank(conf, model, mtcnn, tta = True):
+def prepare_facebank(conf, model, mtcnn, tta = True, save = False):
     model.eval()
     embeddings =  []
     names = ['Unknown']
@@ -63,9 +63,10 @@ def prepare_facebank(conf, model, mtcnn, tta = True):
         embeddings.append(embedding)
         names.append(path.name)
     embeddings = torch.cat(embeddings)
-    names = np.array(names)
-    torch.save(embeddings, conf.facebank_path/'facebank.pth')
-    np.save(conf.facebank_path/'names', names)
+    if save:
+        names = np.array(names)
+        torch.save(embeddings, conf.facebank_path/'facebank.pth')
+        np.save(conf.facebank_path/'names', names)
     return embeddings, names
 
 def load_facebank(conf):
