@@ -11,7 +11,7 @@ from utils import load_facebank, draw_box_name, prepare_facebank
 import pdb
 from data.data_pipe import get_val_pair
 import numpy as np
-
+import pandas as pd
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='for face verification')
     parser.add_argument("-s", "--save", help="whether save",action="store_true")
@@ -19,7 +19,8 @@ if __name__ == '__main__':
     parser.add_argument("-u", "--update", help="whether perform update the facebank",action="store_true")
     parser.add_argument("-tta", "--tta", help="whether test time augmentation",action="store_true")
     parser.add_argument("-c", "--score", help="whether show the confidence score",action="store_true")
-    parser.add_argument("-f", "--file", help="filename")
+    parser.add_argument("-f", "--file", help="filename",required=True)
+    parser.add_argument("-csv", "--csv", help="csv filename",required=True)
     args = parser.parse_args()
 
     conf = get_config(training=False)
@@ -40,31 +41,37 @@ if __name__ == '__main__':
     accuracy, best_threshold, roc_curve_tensor = learner.evaluate(conf, vgg2_fp, vgg2_fp_issame, nrof_folds=10, tta=True)
     print('vgg2_fp - accuray:{}, threshold:{}'.format(accuracy, best_threshold))
     exit(0)'''
+    df = pd.read_csv(args.csv)
+    imlst = df.groupby('classnm')['imgfile'].apply(lambda x: x.tolist()).to_dict()
     if args.update:
-        targets, names = prepare_facebank(conf, learner.model, mtcnn, tta = args.tta)
+        targets, names = prepare_facebank(conf, imlst, learner.model, mtcnn, tta = args.tta,save = True)
         print('facebank updated')
     else:
         targets, names = load_facebank(conf)
         print('facebank loaded')
-    faces = [] 
-    f = open(args.file)
-    imgfns = f.readlines()
-    for imgfn in imgfns:
-        frame = cv2.imread(imgfn.strip())
-        frame = cv2.resize(frame,(112,112))
-        image = Image.fromarray(frame[:,:,::-1])
-        #pdb.set_trace()
-        try:
-            face = mtcnn.align(image)
+    faces = []
+    predfns = []
+    with open(args.file) as f:
+        imgfiles = list(map(str.strip,f.readlines()))
+        for imgfn in imgfiles:
+            try:
+                face = Image.open(imgfn)
+            except:
+                print('cannot open query image file {}'.format(imgfn))
+                continue
+            try:
+                face = mtcnn.align(face)
+            except:
+                print('mtcnn failed for {}'.format(imgfn))
+                face = face.resize((112,112), Image.ANTIALIAS)
             data = np.asarray(face)
             face = Image.fromarray(data[:,:,::-1])
-        except:
-            print('mtcnn failed for {}'.format(imgfn))
-            face = Image.fromarray(frame)
-        faces.append(face)
+            faces.append(face)
     results, score ,d = learner.infer(conf, faces, targets, args.tta)
-    for idx,f in enumerate(imgfns):
-        print (f+" "+names[results[idx] + 1])
+    print (names)
+    pdb.set_trace()
+    for idx,imgfn in enumerate(imgfiles):
+        print ("For {} found face  {}".format(imgfn,names[results[idx] + 1]))
         print (score)
         print (d[idx])
     '''

@@ -10,6 +10,7 @@ import torch
 from model import l2_norm
 import pdb
 import cv2
+from pathlib import Path
 
 def separate_bn_paras(modules):
     if not isinstance(modules, list):
@@ -28,40 +29,40 @@ def separate_bn_paras(modules):
                 paras_wo_bn.extend([*layer.parameters()])
     return paras_only_bn, paras_wo_bn
 
-def prepare_facebank(conf, model, mtcnn, tta = True, save = False):
+def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
     model.eval()
     embeddings =  []
     names = ['Unknown']
-    for path in conf.facebank_path.iterdir():
-        if path.is_file():
-            continue
-        else:
-            embs = []
-            for file in path.iterdir():
-                if not file.is_file():
+    for classnm, files in imlst.items():
+        embs = []
+        for f in files:
+            if not Path(f).is_file():
+                continue
+            else:
+                try:
+                    img = Image.open(f)
+                except:
                     continue
-                else:
-                    try:
-                        img = Image.open(file)
-                    except:
-                        continue
-                    if img.size != (112, 112):
-                        img = mtcnn.align(img)
-                    data = np.asarray(img)
-                    img = Image.fromarray(data[:,:,::-1])
-                    with torch.no_grad():
-                        if tta:
-                            mirror = trans.functional.hflip(img)
-                            emb = l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
-                            emb_mirror = l2_norm(model(conf.test_transform(mirror).to(conf.device).unsqueeze(0)))
-                            embs.append(l2_norm(emb + emb_mirror))
-                        else:                        
-                            embs.append(l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
+                try:
+                    img = mtcnn.align(img)
+                except:
+                    img = img.resize((112,112), Image.ANTIALIAS)
+                    print('mtcnn failed for {}'.format(f))
+                data = np.asarray(img)
+                img = Image.fromarray(data[:,:,::-1])
+                with torch.no_grad():
+                    if tta:
+                        mirror = trans.functional.hflip(img)
+                        emb = l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
+                        emb_mirror = l2_norm(model(conf.test_transform(mirror).to(conf.device).unsqueeze(0)))
+                        embs.append(l2_norm(emb + emb_mirror))
+                    else:                        
+                        embs.append(l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
         if len(embs) == 0:
             continue
-        embedding = torch.cat(embs).mean(0,keepdim=True)
+        embedding = l2_norm(torch.cat(embs).mean(0,keepdim=True))
         embeddings.append(embedding)
-        names.append(path.name)
+        names.append(classnm)
     embeddings = torch.cat(embeddings)
     if save:
         names = np.array(names)
@@ -109,8 +110,8 @@ def face_reader(conf, conn, flag, boxes_arr, result_arr, learner, mtcnn, targets
                 boxes_arr[i] = 0 # by default,it's all 0
             for i in range(len(result_arr)):
                 result_arr[i] = -1 # by default,it's all -1
-        print('boxes_arr ： {}'.format(boxes_arr[:4]))
-        print('result_arr ： {}'.format(result_arr[:4]))
+        print('boxes_arr {}'.format(boxes_arr[:4]))
+        print('result_arr {}'.format(result_arr[:4]))
         flag.value = 0
 
 hflip = trans.Compose([

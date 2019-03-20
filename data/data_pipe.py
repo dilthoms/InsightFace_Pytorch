@@ -63,9 +63,10 @@ def get_train_dataset(imgs_folder,agefile=None):
     ])
     if agefile:
         ds = AgeDataset(imgs_folder,agefile,train_transform)
+        class_num = 85742
     else:
         ds = ImageFolder(imgs_folder, train_transform)
-    class_num = ds[-1][1] + 1
+        class_num = ds[-1][1] + 1
     return ds, class_num
 
 def get_train_loader(conf):
