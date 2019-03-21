@@ -31,9 +31,11 @@ if __name__ == '__main__':
     learner = face_learner(conf, inference=True)
     learner.threshold = args.threshold
     if conf.device.type == 'cpu':
-        learner.load_state(conf, 'cpu_final.pth', True, True)
+        #learner.load_state(conf, 'cpu_final.pth', True, True)
+        learner.load_state(conf, '2019-03-19-20-18_accuracy:0.9307142857142857_step:300234_None.pth', False, True)
     else:
-        learner.load_state(conf, 'final.pth', True, True)
+        #learner.load_state(conf, 'final.pth', True, True)
+        learner.load_state(conf, '2019-03-19-20-18_accuracy:0.9307142857142857_step:300234_None.pth', False, True)
     learner.model.eval()
     print('learner loaded')
    
@@ -44,10 +46,10 @@ if __name__ == '__main__':
     df = pd.read_csv(args.csv)
     imlst = df.groupby('classnm')['imgfile'].apply(lambda x: x.tolist()).to_dict()
     if args.update:
-        targets, names = prepare_facebank(conf, imlst, learner.model, mtcnn, tta = args.tta,save = True)
+        targets, ftoid, idinfo = prepare_facebank(conf, imlst, learner.model, mtcnn, tta = args.tta,save = True)
         print('facebank updated')
     else:
-        targets, names = load_facebank(conf)
+        targets, ftoid, idinfo = load_facebank(conf)
         print('facebank loaded')
     faces = []
     predfns = []
@@ -64,16 +66,19 @@ if __name__ == '__main__':
             except:
                 print('mtcnn failed for {}'.format(imgfn))
                 face = face.resize((112,112), Image.ANTIALIAS)
-            data = np.asarray(face)
+            #data = np.array((cv2.cvtColor(np.asarray(face), cv2.COLOR_RGB2GRAY),)*3).T
+            #face = Image.fromarray(data)
+            data = np.array(face)
             face = Image.fromarray(data[:,:,::-1])
             faces.append(face)
     results, score ,d = learner.infer(conf, faces, targets, args.tta)
-    print (names)
-    pdb.set_trace()
+    print (score)
     for idx,imgfn in enumerate(imgfiles):
-        print ("For {} found face  {}".format(imgfn,names[results[idx] + 1]))
-        print (score)
-        print (d[idx])
+        i = results[idx]
+        print ("For {} found face  {}".format(imgfn,"Unknown" if i == -1 else idinfo[i][1]))
+        print (d[idx], d[idx][i])
+        print (score[idx])
+        print (idinfo[i])
     '''
     # inital camera
     cap = cv2.VideoCapture(0)
