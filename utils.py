@@ -47,7 +47,7 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                     img = mtcnn.align(img)
                 except:
                     img = img.resize((112,112), Image.ANTIALIAS)
-                    print('mtcnn failed for {}'.format(f))
+                    #print('mtcnn failed for {}'.format(f))
                 data = np.asarray(img)
                 img = Image.fromarray(data[:,:,::-1])
                 with torch.no_grad():
