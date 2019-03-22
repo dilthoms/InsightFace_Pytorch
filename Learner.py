@@ -77,7 +77,7 @@ class face_learner(object):
                 self.optimizer.state_dict(), save_path /
                 ('optimizer_{}_accuracy:{}_step:{}_{}.pth'.format(get_time(), accuracy, self.step, extra)))
     
-    def load_state(self, conf, fixed_str, from_save_folder=False, model_only=False):
+    def load_state(self, conf, fixed_str, from_save_folder=False, model_only=True):
         if from_save_folder:
             save_path = conf.save_path
         else:
@@ -259,12 +259,11 @@ class face_learner(object):
                     embs.append(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
             source_embs = torch.cat(embs)
             
-            #diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).unsqueeze(0)
+            #diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).to(conf.device).unsqueeze(0)
             #dist = torch.sum(torch.pow(diff, 2), dim=1)
-            pdb.set_trace()
+            #pdb.set_trace()
             cos = torch.nn.CosineSimilarity(dim=1,eps=1e-6)
             dist = 1 - cos(source_embs.unsqueeze(-1),target_embs.transpose(1,0).unsqueeze(0).cuda())
-            #dist = torch.sum(torch.pow(diff, 2), dim=1)
             minimum, min_idx = torch.min(dist, dim=1)
             min_idx[minimum > self.threshold] = -1 # if no match, set idx to -1
             return min_idx, minimum,dist,source_embs

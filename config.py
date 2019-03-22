@@ -7,7 +7,7 @@ from torchvision import transforms as trans
 def get_config(training = True):
     conf = edict()
     conf.data_path = Path('data')
-    conf.work_path = Path('work_space/')
+    conf.work_path = Path('./')
     conf.model_path = conf.work_path/'models'
     conf.log_path = conf.work_path/'log'
     conf.save_path = conf.work_path/'save'
@@ -17,7 +17,7 @@ def get_config(training = True):
     conf.net_depth = 50
     conf.drop_ratio = 0.6
     conf.net_mode = 'mobilefacenet' # or 'ir'
-    conf.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    conf.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     conf.test_transform = trans.Compose([
                     trans.ToTensor(),
                     trans.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])

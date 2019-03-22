@@ -44,18 +44,19 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                 continue
             else:
                 try:
-                    img = Image.open(f)
+                    img = Image.open(f).convert('RGB')
                 except:
+                    print('Loading failed for {}'.format(imgfn))
                     continue
                 try:
                     img = mtcnn.align(img)
                 except:
                     img = img.resize((112,112), Image.ANTIALIAS)
                     print('mtcnn failed for {}'.format(f))
-                #data = np.array((cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY),)*3).T
-                #img = Image.fromarray(data)
-                data = np.asarray(img)
-                img = Image.fromarray(data[:,:,::-1])
+                data = np.array((cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY),)*3).T
+                img = Image.fromarray(data)
+                #data = np.asarray(img)
+                #img = Image.fromarray(data[:,:,::-1])
                 
                 ftoid[f] = len(embs)
                 idinfo.append((f,classnm))
