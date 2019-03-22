@@ -98,28 +98,31 @@ class face_learner(object):
 #         self.writer.add_scalar('{}_val_std'.format(db_name), val_std, self.step)
 #         self.writer.add_scalar('{}_far:False Acceptance Ratio'.format(db_name), far, self.step)
         
-    def evaluate(self, conf, carray, issame, nrof_folds = 5, tta = False):
+    def evaluate(self, conf, carray, issame, nrof_folds = 5, tta = False, precomputed = False):
         self.model.eval()
-        idx = 0
-        embeddings = np.zeros([len(carray), conf.embedding_size])
-        with torch.no_grad():
-            while idx + conf.batch_size <= len(carray):
-                batch = torch.tensor(carray[idx:idx + conf.batch_size])
-                if tta:
-                    fliped = hflip_batch(batch)
-                    emb_batch = l2_norm(self.model(batch.to(conf.device))) + l2_norm(self.model(fliped.to(conf.device)))
-                    embeddings[idx:idx + conf.batch_size] = l2_norm(emb_batch)
-                else:
-                    embeddings[idx:idx + conf.batch_size] = l2_norm(self.model(batch.to(conf.device))).cpu()
-                idx += conf.batch_size
-            if idx < len(carray):
-                batch = torch.tensor(carray[idx:])            
-                if tta:
-                    fliped = hflip_batch(batch)
-                    emb_batch = l2_norm(self.model(batch.to(conf.device))) + l2_norm(self.model(fliped.to(conf.device)))
-                    embeddings[idx:] = l2_norm(emb_batch)
-                else:
-                    embeddings[idx:] = l2_norm(self.model(batch.to(conf.device))).cpu()
+        if precomputed:
+            embeddings = carray
+        else:
+            idx = 0
+            embeddings = np.zeros([len(carray), conf.embedding_size])
+            with torch.no_grad():
+                while idx + conf.batch_size <= len(carray):
+                    batch = torch.tensor(carray[idx:idx + conf.batch_size])
+                    if tta:
+                        fliped = hflip_batch(batch)
+                        emb_batch = l2_norm(self.model(batch.to(conf.device))) + l2_norm(self.model(fliped.to(conf.device)))
+                        embeddings[idx:idx + conf.batch_size] = l2_norm(emb_batch)
+                    else:
+                        embeddings[idx:idx + conf.batch_size] = l2_norm(self.model(batch.to(conf.device))).cpu()
+                    idx += conf.batch_size
+                if idx < len(carray):
+                    batch = torch.tensor(carray[idx:])            
+                    if tta:
+                        fliped = hflip_batch(batch)
+                        emb_batch = l2_norm(self.model(batch.to(conf.device))) + l2_norm(self.model(fliped.to(conf.device)))
+                        embeddings[idx:] = l2_norm(emb_batch)
+                    else:
+                        embeddings[idx:] = l2_norm(self.model(batch.to(conf.device))).cpu()
         tpr, fpr, accuracy, best_thresholds = evaluate(embeddings, issame, nrof_folds)
         buf = gen_plot(fpr, tpr)
         roc_curve = Image.open(buf)
@@ -256,8 +259,12 @@ class face_learner(object):
                     embs.append(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
             source_embs = torch.cat(embs)
             
-            diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).unsqueeze(0)
-            dist = torch.sum(torch.pow(diff, 2), dim=1)
+            #diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).unsqueeze(0)
+            #dist = torch.sum(torch.pow(diff, 2), dim=1)
+            pdb.set_trace()
+            cos = torch.nn.CosineSimilarity(dim=1,eps=1e-6)
+            dist = 1 - cos(source_embs.unsqueeze(-1),target_embs.transpose(1,0).unsqueeze(0).cuda())
+            #dist = torch.sum(torch.pow(diff, 2), dim=1)
             minimum, min_idx = torch.min(dist, dim=1)
             min_idx[minimum > self.threshold] = -1 # if no match, set idx to -1
             return min_idx, minimum,dist,source_embs

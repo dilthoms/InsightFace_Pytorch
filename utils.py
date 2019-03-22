@@ -11,6 +11,7 @@ from model import l2_norm
 import pdb
 import cv2
 from pathlib import Path
+import pickle
 
 def separate_bn_paras(modules):
     if not isinstance(modules, list):
@@ -31,10 +32,13 @@ def separate_bn_paras(modules):
 
 def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
     model.eval()
-    embeddings =  []
+    #embeddings =  []
     names = ['Unknown']
+    ftoid = {}
+    idinfo = []
+    idx = 0
+    embs = []
     for classnm, files in imlst.items():
-        embs = []
         for f in files:
             if not Path(f).is_file():
                 continue
@@ -47,9 +51,14 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                     img = mtcnn.align(img)
                 except:
                     img = img.resize((112,112), Image.ANTIALIAS)
-                    #print('mtcnn failed for {}'.format(f))
+                    print('mtcnn failed for {}'.format(f))
+                #data = np.array((cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY),)*3).T
+                #img = Image.fromarray(data)
                 data = np.asarray(img)
                 img = Image.fromarray(data[:,:,::-1])
+                
+                ftoid[f] = len(embs)
+                idinfo.append((f,classnm))
                 with torch.no_grad():
                     if tta:
                         mirror = trans.functional.hflip(img)
@@ -58,22 +67,24 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                         embs.append(l2_norm(emb + emb_mirror))
                     else:                        
                         embs.append(l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
-        if len(embs) == 0:
-            continue
-        embedding = l2_norm(torch.cat(embs).mean(0,keepdim=True))
-        embeddings.append(embedding)
-        names.append(classnm)
-    embeddings = torch.cat(embeddings)
+        #embedding = l2_norm(torch.cat(embs).mean(0,keepdim=True))
+        #embeddings.append(embedding)
+        #names.append(classnm)
+    #embeddings = torch.cat(embeddings)
+    embeddings = torch.cat(embs)
     if save:
-        names = np.array(names)
         torch.save(embeddings, conf.facebank_path/'facebank.pth')
-        np.save(conf.facebank_path/'names', names)
-    return embeddings, names
+        with open(conf.facebank_path/'ftoid.pkl', 'wb') as outfile:
+            pickle.dump(ftoid, outfile, protocol=pickle.HIGHEST_PROTOCOL)
+        np.save(conf.facebank_path/'idinfo', idinfo)
+    return embeddings,ftoid,idinfo
 
 def load_facebank(conf):
     embeddings = torch.load(conf.facebank_path/'facebank.pth',map_location=lambda storage, loc: storage)
-    names = np.load(conf.facebank_path/'names.npy')
-    return embeddings, names
+    with open(conf.facebank_path/'ftoid.pkl', 'rb') as infile:
+        ftoid = pickle.load(infile)
+    idinfo = np.load(conf.facebank_path/'idinfo.npy')
+    return embeddings, ftoid, idinfo
 
 def face_reader(conf, conn, flag, boxes_arr, result_arr, learner, mtcnn, targets, tta):
     while True:
