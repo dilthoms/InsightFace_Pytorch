@@ -6,7 +6,7 @@ import numpy as np
 from .box_utils import nms, _preprocess
 
 
-def run_first_stage(image, net, scale, threshold):
+def run_first_stage(image, net, device, scale, threshold):
     """Run P-Net, generate bounding boxes, and do NMS.
 
     Arguments:
@@ -29,18 +29,19 @@ def run_first_stage(image, net, scale, threshold):
     img = image.resize((sw, sh), Image.BILINEAR)
     img = np.asarray(img, 'float32')
 
-    img = Variable(torch.FloatTensor(_preprocess(img)), volatile=True)
-    output = net(img)
-    probs = output[1].data.numpy()[0, 1, :, :]
-    offsets = output[0].data.numpy()
-    # probs: probability of a face at each sliding window
-    # offsets: transformations to true bounding boxes
+    img = torch.FloatTensor(_preprocess(img)).to(device)
+    with torch.no_grad():
+        output = net(img)
+        probs = output[1].cpu().data.numpy()[0, 1, :, :]
+        offsets = output[0].cpu().data.numpy()
+        # probs: probability of a face at each sliding window
+        # offsets: transformations to true bounding boxes
 
-    boxes = _generate_bboxes(probs, offsets, scale, threshold)
-    if len(boxes) == 0:
-        return None
+        boxes = _generate_bboxes(probs, offsets, scale, threshold)
+        if len(boxes) == 0:
+            return None
 
-    keep = nms(boxes[:, 0:5], overlap_threshold=0.5)
+        keep = nms(boxes[:, 0:5], overlap_threshold=0.5)
     return boxes[keep]
 
 

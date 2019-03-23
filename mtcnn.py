@@ -6,14 +6,13 @@ from mtcnn_pytorch.src.get_nets import PNet, RNet, ONet
 from mtcnn_pytorch.src.box_utils import nms, calibrate_box, get_image_boxes, convert_to_square
 from mtcnn_pytorch.src.first_stage import run_first_stage
 from mtcnn_pytorch.src.align_trans import get_reference_facial_points, warp_and_crop_face
-#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-device = 'cpu'
-
+import pdb
 class MTCNN():
-    def __init__(self):
-        self.pnet = PNet().to(device)
-        self.rnet = RNet().to(device)
-        self.onet = ONet().to(device)
+    def __init__(self,conf):
+        self.device = conf.device
+        self.pnet = PNet().to(self.device)
+        self.rnet = RNet().to(self.device)
+        self.onet = ONet().to(self.device)
         self.pnet.eval()
         self.rnet.eval()
         self.onet.eval()
@@ -37,7 +36,7 @@ class MTCNN():
             faces.append(Image.fromarray(warped_face))
         return boxes, faces
 
-    def detect_faces(self, image, min_face_size=20.0,
+    def detect_faces(self, image, min_face_size=15.0,
                      thresholds=[0.6, 0.7, 0.8],
                      nms_thresholds=[0.7, 0.7, 0.7]):
         """
@@ -82,7 +81,7 @@ class MTCNN():
         with torch.no_grad():
             # run P-Net on different scales
             for s in scales:
-                boxes = run_first_stage(image, self.pnet, scale=s, threshold=thresholds[0])
+                boxes = run_first_stage(image, self.pnet, self.device, scale=s, threshold=thresholds[0])
                 bounding_boxes.append(boxes)
 
             # collect boxes (and offsets, and scores) from different scales
@@ -102,7 +101,7 @@ class MTCNN():
             # STAGE 2
 
             img_boxes = get_image_boxes(bounding_boxes, image, size=24)
-            img_boxes = torch.FloatTensor(img_boxes).to(device)
+            img_boxes = torch.FloatTensor(img_boxes).to(self.device)
 
             output = self.rnet(img_boxes)
             offsets = output[0].cpu().data.numpy()  # shape [n_boxes, 4]
@@ -124,7 +123,7 @@ class MTCNN():
             img_boxes = get_image_boxes(bounding_boxes, image, size=48)
             if len(img_boxes) == 0: 
                 return [], []
-            img_boxes = torch.FloatTensor(img_boxes).to(device)
+            img_boxes = torch.FloatTensor(img_boxes).to(self.device)
             output = self.onet(img_boxes)
             landmarks = output[0].cpu().data.numpy()  # shape [n_boxes, 10]
             offsets = output[1].cpu().data.numpy()  # shape [n_boxes, 4]

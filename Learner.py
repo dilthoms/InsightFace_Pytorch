@@ -81,8 +81,11 @@ class face_learner(object):
         if from_save_folder:
             save_path = conf.save_path
         else:
-            save_path = conf.model_path            
-        self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str),map_location=lambda storage, loc: storage))
+            save_path = conf.model_path 
+        if conf.device.type == 'cpu':           
+            self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str),map_location=lambda storage, loc: storage))
+        else:
+            self.model.load_state_dict(torch.load(save_path/'model_{}'.format(fixed_str)))#,map_location=lambda storage, loc: storage))
         if not model_only:
             try:
                 self.head.load_state_dict(torch.load(save_path/'head_{}'.format(fixed_str)))
@@ -252,18 +255,18 @@ class face_learner(object):
             for img in faces:
                 if tta:
                     mirror = trans.functional.hflip(img)
-                    emb = l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
-                    emb_mirror = l2_norm(self.model(conf.test_transform(mirror).to(conf.device).unsqueeze(0)))
+                    emb = l2_norm(self.model(conf.test_transform(img).unsqueeze(0).to(conf.device)))
+                    emb_mirror = l2_norm(self.model(conf.test_transform(mirror).unsqueeze(0).to(conf.device)))
                     embs.append(l2_norm(emb + emb_mirror))
                 else:                        
-                    embs.append(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
+                    embs.append(l2_norm(self.model(conf.test_transform(img).unsqueeze(0).to(conf.device))))
             source_embs = torch.cat(embs)
             
-            #diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).to(conf.device).unsqueeze(0)
-            #dist = torch.sum(torch.pow(diff, 2), dim=1)
+            diff = source_embs.unsqueeze(-1) - target_embs.transpose(1,0).to(conf.device).unsqueeze(0)
+            dist = torch.sum(torch.pow(diff, 2), dim=1)
             #pdb.set_trace()
-            cos = torch.nn.CosineSimilarity(dim=1,eps=1e-6)
-            dist = 1 - cos(source_embs.unsqueeze(-1),target_embs.transpose(1,0).unsqueeze(0).cuda())
+            #cos = torch.nn.CosineSimilarity(dim=1,eps=1e-6)
+            #dist = 1 - cos(source_embs.unsqueeze(-1),target_embs.transpose(1,0).unsqueeze(0).cuda())
             minimum, min_idx = torch.min(dist, dim=1)
             min_idx[minimum > self.threshold] = -1 # if no match, set idx to -1
             return min_idx, minimum,dist,source_embs

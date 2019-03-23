@@ -44,7 +44,7 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                 continue
             else:
                 try:
-                    img = Image.open(f).convert('RGB')
+                    img = Image.open(f)
                 except:
                     print('Loading failed for {}'.format(imgfn))
                     continue
@@ -53,21 +53,21 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                 except:
                     img = img.resize((112,112), Image.ANTIALIAS)
                     print('mtcnn failed for {}'.format(f))
-                data = np.array((cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY),)*3).T
-                img = Image.fromarray(data)
-                #data = np.asarray(img)
-                #img = Image.fromarray(data[:,:,::-1])
+                #data = np.array((cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY),)*3).T
+                #img = Image.fromarray(data.astype(np.uint8))
+                data = np.asarray(img)
+                img = Image.fromarray(data[:,:,::-1].astype(np.uint8))
                 
                 ftoid[f] = len(embs)
                 idinfo.append((f,classnm))
                 with torch.no_grad():
                     if tta:
                         mirror = trans.functional.hflip(img)
-                        emb = l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
-                        emb_mirror = l2_norm(model(conf.test_transform(mirror).to(conf.device).unsqueeze(0)))
+                        emb = l2_norm(model(conf.test_transform(img).unsqueeze(0).to(conf.device)))
+                        emb_mirror = l2_norm(model(conf.test_transform(mirror).unsqueeze(0).to(conf.device)))
                         embs.append(l2_norm(emb + emb_mirror))
                     else:                        
-                        embs.append(l2_norm(model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
+                        embs.append(l2_norm(model(conf.test_transform(img).unsqueeze(0).to(conf.device))))
         #embedding = l2_norm(torch.cat(embs).mean(0,keepdim=True))
         #embeddings.append(embedding)
         #names.append(classnm)
