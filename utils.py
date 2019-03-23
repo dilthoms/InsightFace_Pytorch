@@ -44,7 +44,7 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                 continue
             else:
                 try:
-                    img = Image.open(f)
+                    img = Image.open(f).convert('RGB')
                 except:
                     print('Loading failed for {}'.format(imgfn))
                     continue
