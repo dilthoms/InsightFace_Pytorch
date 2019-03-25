@@ -40,6 +40,7 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
     for classnm, files in imlst.items():
         for f in files:
             if not Path(f).is_file():
+                print('File {} not found'.format(f))
                 continue
             else:
                 try:
