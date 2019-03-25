@@ -100,8 +100,8 @@ def load_lag(path, imgdir,rootdir, transform, image_size=[112,112]):
     df = pd.read_csv(path)
     data = bcolz.fill([len(df)*2, 3, image_size[0], image_size[1]], dtype=np.float32, rootdir=rootdir, mode='w')
     for idx,row in df.iterrows():
-        imga = cv2.resize(cv2.imread(str(imgdir/row['apath']),1),(image_size[0],image_size[1]))
-        imgy = cv2.resize(cv2.imread(str(imgdir/row['ypath']),1),(image_size[0],image_size[1]))
+        imga = cv2.resize(cv2.imread(str(imgdir/row['pair1']),1),(image_size[0],image_size[1]))
+        imgy = cv2.resize(cv2.imread(str(imgdir/row['pair2']),1),(image_size[0],image_size[1]))
         imga = Image.fromarray(imga.astype(np.uint8))
         imgy = Image.fromarray(imgy.astype(np.uint8))
         data[2*idx, ...] = transform(imga)

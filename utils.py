@@ -33,7 +33,6 @@ def separate_bn_paras(modules):
 def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
     model.eval()
     #embeddings =  []
-    names = ['Unknown']
     ftoid = {}
     idinfo = []
     idx = 0
@@ -51,8 +50,8 @@ def prepare_facebank(conf, imlst, model, mtcnn, tta = True, save = False):
                 try:
                     img = mtcnn.align(img)
                 except:
-                    img = img.resize((112,112), Image.ANTIALIAS)
-                    print('mtcnn failed for {}'.format(f))
+                    img = img.resize((conf.input_size[0],conf.input_size[1]), Image.ANTIALIAS)
+                    #print('mtcnn failed for {}'.format(f))
                 #data = np.array((cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2GRAY),)*3).T
                 #img = Image.fromarray(data.astype(np.uint8))
                 data = np.asarray(img)

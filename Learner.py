@@ -16,10 +16,10 @@ import bcolz
 import pdb
 class face_learner(object):
     def __init__(self, conf, inference=False):
-        print(conf)
+        #print(conf)
         if conf.use_mobilfacenet:
             self.model = MobileFaceNet(conf.embedding_size).to(conf.device)
-            print('MobileFaceNet model generated')
+            #print('MobileFaceNet model generated')
         else:
             self.model = Backbone(conf.net_depth, conf.drop_ratio, conf.net_mode).to(conf.device)
             print('{}_{} model generated'.format(conf.net_mode, conf.net_depth))
@@ -270,17 +270,4 @@ class face_learner(object):
             minimum, min_idx = torch.min(dist, dim=1)
             min_idx[minimum > self.threshold] = -1 # if no match, set idx to -1
             return min_idx, minimum,dist,source_embs
-    def embedding(self,conf,imgs,tta=True):
-         with torch.no_grad():
-            embs = []
-            for img in imgs:
-                if tta:
-                    mirror = trans.functional.hflip(img)
-                    emb = l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0)))
-                    emb_mirror = l2_norm(self.model(conf.test_transform(mirror).to(conf.device).unsqueeze(0)))
-                    embs.append(l2_norm(emb + emb_mirror))
-                else:                        
-                    embs.append(l2_norm(self.model(conf.test_transform(img).to(conf.device).unsqueeze(0))))
-            embs = torch.cat(embs)
-            return embs
-            
+           
